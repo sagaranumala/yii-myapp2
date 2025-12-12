@@ -19,6 +19,9 @@
 </head>
 
 <body>
+	<!-- Toast container -->
+<div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
+
 
 <div class="container" id="page">
 

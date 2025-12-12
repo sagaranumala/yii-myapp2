@@ -1,29 +1,54 @@
-version: '3.8'
+# version: '3.8'
+
+# services:
+#   web:
+#     image: php:7.4-apache
+#     container_name: yii-app
+#     ports:
+#       - "8080:80"
+#     volumes:
+#       - /c/xampp/htdocs/myapp2:/var/www/html
+#       - /c/xampp/htdocs/yii-1.1.18.018a89:/var/www/yii
+#     environment:
+#       APP_ENV: dev
+#       DB_HOST: host.docker.internal
+#       DB_NAME: ticketdb
+#       DB_USER: root
+#       DB_PASS: Sagar@194
+#     command: >
+#        bash -c "docker-php-ext-install pdo pdo_mysql mysqli &&
+#        a2enmod rewrite &&
+#        apache2-foreground"
 
 services:
   web:
-    image: php:7.4-apache
+    build: .
     container_name: yii-app
     ports:
       - "8080:80"
     volumes:
-      - /c/xampp/htdocs/myapp2:/var/www/html   # your app
-      - /c/xampp/htdocs/yii-1.1.18.018a89:/var/www/yii # Unix-style path
-    depends_on:
-      - db
-    command: >
-       bash -c "docker-php-ext-install pdo pdo_mysql &&
-       a2enmod rewrite &&
-       apache2-foreground"
-
-
-  db:
-    image: mysql:5.7
-    container_name: yii-db
+      - /c/xampp/htdocs/myapp2:/var/www/html
+      - /c/xampp/htdocs/yii-1.1.18.018a89:/var/www/yii
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: yii_db
-      MYSQL_USER: yii_user
-      MYSQL_PASSWORD: yii_pass
-    ports:
-      - "3307:3306"
+      APP_ENV: dev
+      DB_HOST: host.docker.internal
+      DB_NAME: ticketdb
+      DB_USER: root
+      DB_PASS: Sagar@194
+    command: >
+      bash -c "docker-php-ext-install pdo pdo_mysql mysqli &&
+      a2enmod rewrite &&
+      apache2-foreground"
+
+
+  # db:
+  #   image: mysql:5.7
+  #   container_name: yii-db
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root
+  #     MYSQL_DATABASE: ticketdb
+  #     MYSQL_USER: yii_user
+  #     MYSQL_PASSWORD: yii_pass
+  #   ports:
+  #     - "3307:3306"
+

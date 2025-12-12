@@ -43,7 +43,7 @@ return array(
             'rules' => array(
                 // Specific routes first
                 'calculator' => 'site/simpleCalc',
-				 'signup' => 'site/signup',
+				 'site' => 'site/signup',
                 'calc' => 'site/simpleCalc',
                 'test-db' => 'site/testDb',
                 
