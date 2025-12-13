@@ -10,7 +10,7 @@ class AuthController extends Controller
         $this->setCorsHeaders();
         
         // Skip CSRF for API endpoints
-        if (in_array($action->id, array('login', 'register', 'validate', 'logout'))) {
+        if (in_array($action->id, array('login', 'signup', 'validate', 'logout'))) {
             $this->enableCsrfValidation = false;
         }
         
@@ -95,6 +95,72 @@ class AuthController extends Controller
     }
 
     /**
+     * API Signup endpoint
+     * POST /auth/signup
+     */
+    public function actionSignup()
+    {
+        // Set JSON content type
+        header('Content-Type: application/json');
+        
+        // Check if it's a POST request
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->sendJsonResponse(false, 'Method not allowed. Use POST.', null, 405);
+        }
+
+        // Get data from POST or raw JSON
+        $input = file_get_contents('php://input');
+        $data = json_decode($input, true);
+        
+        // Fallback to regular POST
+        if (!$data) {
+            $data = $_POST;
+        }
+
+        // Check if data provided
+        if (empty($data['email']) || empty($data['password']) || empty($data['name'])) {
+            $this->sendJsonResponse(false, 'Missing required fields: name, email, password.');
+        }
+
+        // Create signup form
+        $model = new SignupForm();
+        $model->name = $data['name'];
+        $model->email = $data['email'];
+        $model->password = $data['password'];
+        $model->password_repeat = isset($data['password_repeat']) ? $data['password_repeat'] : $data['password'];
+        $model->phone = isset($data['phone']) ? $data['phone'] : null;
+        $model->role = isset($data['role']) ? $data['role'] : 'user';
+        $model->agree_terms = isset($data['agree_terms']) ? $data['agree_terms'] : true;
+        
+        // Validate and register
+        if ($model->validate() && $model->register()) {
+            $token = $model->generateJwtToken();
+            $user = $model->getUser();
+            
+            if ($token) {
+                $this->sendJsonResponse(true, 'Registration successful', array(
+                    'token' => $token,
+                    'token_type' => 'bearer',
+                    'expires_in' => Yii::app()->jwt->expireTime,
+                    'user' => $user->getApiData()
+                ));
+            } else {
+                $this->sendJsonResponse(false, 'Failed to generate token');
+            }
+        } else {
+            $errors = $model->getErrors();
+            $errorMessages = array();
+            foreach ($errors as $field => $messages) {
+                $errorMessages = array_merge($errorMessages, $messages);
+            }
+            
+            $this->sendJsonResponse(false, 'Registration failed', array(
+                'errors' => $errorMessages
+            ));
+        }
+    }
+
+    /**
      * Validate JWT token
      * GET /auth/validate
      */
@@ -112,58 +178,13 @@ class AuthController extends Controller
     }
 
     /**
-     * Register new user
+     * Register new user (alias for signup - kept for backward compatibility)
      * POST /auth/register
      */
     public function actionRegister()
     {
-        header('Content-Type: application/json');
-        
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->sendJsonResponse(false, 'Method not allowed', null, 405);
-        }
-
-        // Get data
-        $input = file_get_contents('php://input');
-        $data = json_decode($input, true);
-        
-        if (!$data) {
-            $data = $_POST;
-        }
-
-        if (empty($data['email']) || empty($data['password']) || empty($data['name'])) {
-            $this->sendJsonResponse(false, 'Missing required fields: email, password, name');
-        }
-
-        // Check existing user
-        $existing = User::model()->findByAttributes(array('email' => $data['email']));
-        if ($existing) {
-            $this->sendJsonResponse(false, 'Email already registered');
-        }
-
-        $user = new User();
-        $user->name = $data['name'];
-        $user->email = $data['email'];
-        $user->password = $user->hashPassword($data['password']);
-        $user->phone = isset($data['phone']) ? $data['phone'] : null;
-        $user->role = isset($data['role']) ? $data['role'] : 'user';
-        $user->userId = 'usr_' . uniqid();
-
-        if ($user->save()) {
-            $token = Yii::app()->jwt->generateToken(
-                $user->id,
-                $user->email,
-                $user->role,
-                $user->name
-            );
-            
-            $this->sendJsonResponse(true, 'Registration successful', array(
-                'token' => $token,
-                'user' => $user->getApiData()
-            ));
-        } else {
-            $this->sendJsonResponse(false, 'Registration failed', $user->getErrors());
-        }
+        // Just call the signup action
+        $this->actionSignup();
     }
 
     /**
