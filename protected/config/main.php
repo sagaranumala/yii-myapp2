@@ -21,6 +21,7 @@ return array(
     'import' => array(
         'application.models.*',
         'application.components.*',
+        'application.controllers.*',
     ),
 
 	'modules'=>array(
@@ -33,6 +34,11 @@ return array(
 
 
     'components' => array(
+        'jwt' => array(
+            'class' => 'JwtHelper',
+            'secretKey' => getenv('JWT_SECRET') ?: 'your-super-secret-jwt-key-2024',
+            'expireTime' => 86400, // 24 hours
+        ),
         'user' => array(
             'allowAutoLogin' => true,
         ),
@@ -41,11 +47,17 @@ return array(
             'urlFormat' => 'get',
             'showScriptName' => true,
             'rules' => array(
+				 // Auth routes
+                'auth/login' => 'auth/login',
+                'auth/register' => 'auth/register',
+                'auth/refresh' => 'auth/refresh',
+                'auth/profile' => 'auth/profile',
+                'auth/logout' => 'auth/logout',
+
                 // Specific routes first
                 'calculator' => 'site/simpleCalc',
-				 'signup' => 'site/signup',
-                'calc' => 'site/simpleCalc',
-                'test-db' => 'site/testDb',
+				'calc' => 'site/simpleCalc',
+				'test-db' => 'site/testDb',
                 
                 // API routes
                 'api/users' => 'api/getUsers',
@@ -82,5 +94,7 @@ return array(
     
     'params' => array(
         'adminEmail' => 'webmaster@example.com',
+		 'salt' => 'your-secret-salt-string',
+		 'jwtSecret' => 'your-super-secret-jwt-key-32-chars-minimum!',
     ),
 );
