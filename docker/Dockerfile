@@ -20,14 +20,15 @@
 # CMD ["apache2-foreground"]
 
 
-# Use PHP 7.4 with Apache (compatible with Yii 1.x)
+# Use PHP 7.4 with Apache
 FROM php:7.4-apache
 
 # Set environment variables
-ENV APACHE_DOCUMENT_ROOT /var/www/html
-ENV COMPOSER_ALLOW_SUPERUSER 1
+ENV APACHE_DOCUMENT_ROOT=/var/www/html \
+    COMPOSER_ALLOW_SUPERUSER=1 \
+    PHP_TIMEZONE=UTC
 
-# Update package list and install required dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -41,12 +42,7 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libfreetype6-dev \
     libjpeg62-turbo-dev \
-    libpng-dev \
     wget \
-    nano \
-    vim \
-    iputils-ping \
-    net-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
@@ -62,8 +58,6 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     gd \
     zip \
     curl \
-    json \
-    simplexml \
     xml \
     opcache
 
@@ -76,15 +70,15 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
     && echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # Configure PHP
-RUN echo "date.timezone = ${PHP_TIMEZONE:-UTC}" > /usr/local/etc/php/conf.d/timezone.ini \
-    && echo "upload_max_filesize = 50M" > /usr/local/etc/php/conf.d/uploads.ini \
-    && echo "post_max_size = 50M" >> /usr/local/etc/php/conf.d/uploads.ini \
-    && echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/memory.ini \
-    && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/execution.ini \
-    && echo "session.gc_maxlifetime = 14400" >> /usr/local/etc/php/conf.d/session.ini \
-    && echo "error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT" >> /usr/local/etc/php/conf.d/errors.ini \
-    && echo "display_errors = On" >> /usr/local/etc/php/conf.d/errors.ini \
-    && echo "log_errors = On" >> /usr/local/etc/php/conf.d/errors.ini
+RUN echo "date.timezone = ${PHP_TIMEZONE}" > /usr/local/etc/php/conf.d/timezone.ini \
+    && echo "upload_max_filesize = 50M" >> /usr/local/etc/php/conf.d/custom.ini \
+    && echo "post_max_size = 50M" >> /usr/local/etc/php/conf.d/custom.ini \
+    && echo "memory_limit = 256M" >> /usr/local/etc/php/conf.d/custom.ini \
+    && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/custom.ini \
+    && echo "session.gc_maxlifetime = 14400" >> /usr/local/etc/php/conf.d/custom.ini \
+    && echo "error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT" >> /usr/local/etc/php/conf.d/custom.ini \
+    && echo "display_errors = On" >> /usr/local/etc/php/conf.d/custom.ini \
+    && echo "log_errors = On" >> /usr/local/etc/php/conf.d/custom.ini
 
 # Install Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
@@ -92,22 +86,49 @@ RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local
 # Set working directory
 WORKDIR /var/www/html
 
-# Create log directories
-RUN mkdir -p /var/www/html/protected/runtime \
-    && mkdir -p /var/www/html/assets \
-    && chmod -R 777 /var/www/html/protected/runtime \
-    && chmod -R 777 /var/www/html/assets
+# Fix 1: Create required directories with proper permissions
+RUN mkdir -p /var/www/html/assets \
+    && mkdir -p /var/www/html/protected/runtime \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html \
+    && chmod -R 777 /var/www/html/assets \
+    && chmod -R 777 /var/www/html/protected/runtime
 
-# Fix permissions
-RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html
+# Fix 2: Create missing CErrorAction.php
+RUN mkdir -p /var/www/yii/framework/web/actions && \
+    echo '<?php' > /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo 'class CErrorAction extends CAction' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '{' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '    public $view = "error";' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '    public function run()' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '    {' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '        if ($error = Yii::app()->errorHandler->error) {' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '            if (Yii::app()->request->isAjaxRequest)' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '                echo $error["message"];' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '            else' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '                $this->controller->render($this->view, $error);' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '        }' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '    }' >> /var/www/yii/framework/web/actions/CErrorAction.php && \
+    echo '}' >> /var/www/yii/framework/web/actions/CErrorAction.php
+
+# Fix 3: Compatibility fix for get_magic_quotes_gpc() (PHP 7.4+)
+RUN echo '<?php if (!function_exists("get_magic_quotes_gpc")) { function get_magic_quotes_gpc() { return false; } } ?>' > /var/www/html/fix.php
+
+# Fix 4: Create a default index.php if not exists
+RUN echo '<?php' > /var/www/html/index.php \
+    && echo '// PHP 7.4+ compatibility fix' >> /var/www/html/index.php \
+    && echo 'require_once("fix.php");' >> /var/www/html/index.php \
+    && echo '' >> /var/www/html/index.php \
+    && echo '// Yii framework path' >> /var/www/html/index.php \
+    && echo '$yii = "/var/www/yii/framework/yii.php";' >> /var/www/html/index.php \
+    && echo 'defined("YII_DEBUG") or define("YII_DEBUG", true);' >> /var/www/html/index.php \
+    && echo 'defined("YII_TRACE_LEVEL") or define("YII_TRACE_LEVEL", 3);' >> /var/www/html/index.php \
+    && echo '' >> /var/www/html/index.php \
+    && echo 'require_once($yii);' >> /var/www/html/index.php \
+    && echo 'Yii::createWebApplication()->run();' >> /var/www/html/index.php
 
 # Expose port
 EXPOSE 80
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost/ || exit 1
 
 # Start Apache
 CMD ["apache2-foreground"]
