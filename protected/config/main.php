@@ -1,5 +1,7 @@
 <?php
-
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 // Load environment variables (Docker)
 $env = getenv();
 
@@ -18,20 +20,29 @@ return array(
     'basePath' => dirname(__FILE__) . DIRECTORY_SEPARATOR . '..',
     'name' => 'My Web Application',
     
+    // ==============================================
+    // IMPORTANT: Add system imports for Docker
+    // ==============================================
     'import' => array(
         'application.models.*',
         'application.components.*',
         'application.controllers.*',
+        'system.*',                    // Import Yii system classes
+        'system.web.*',                // Import web components
+        'system.web.actions.*',        // Import actions (includes CErrorAction)
+        'system.web.widgets.*',        // Import widgets
+        'system.validators.*',         // Import validators
+        'zii.widgets.*',           // Add this for CJuiDatePicker
+        'zii.widgets.jui.*',  
     ),
 
-	'modules'=>array(
-    'gii'=>array(
-        'class'=>'system.gii.GiiModule',
-        'password'=>'sgii123', // set a secure password
-        'ipFilters'=>array('*'),// restrict access
+    'modules' => array(
+        'gii' => array(
+            'class' => 'system.gii.GiiModule',
+            'password' => 'sgii123', // set a secure password
+            'ipFilters' => array('*'), // restrict access
+        ),
     ),
-),
-
 
     'components' => array(
         'jwt' => array(
@@ -47,7 +58,7 @@ return array(
             'urlFormat' => 'get',
             'showScriptName' => true,
             'rules' => array(
-				 // Auth routes
+                // Auth routes
                 'auth/login' => 'auth/login',
                 'auth/register' => 'auth/register',
                 'auth/refresh' => 'auth/refresh',
@@ -56,8 +67,8 @@ return array(
 
                 // Specific routes first
                 'calculator' => 'site/simpleCalc',
-				'calc' => 'site/simpleCalc',
-				'test-db' => 'site/testDb',
+                'calc' => 'site/simpleCalc',
+                'test-db' => 'site/testDb',
                 
                 // API routes
                 'api/users' => 'api/getUsers',
@@ -67,6 +78,39 @@ return array(
                 'api/users/create' => 'api/createUser',
                 'api/users/update/<id:\d+>' => 'api/updateUser',
                 'api/users/delete/<id:\d+>' => 'api/deleteUser',
+
+                // ========== BLOG ROUTES ==========
+                // Blog listing (public)
+                'blogs' => 'blog/index',
+                
+                // View single blog (public)
+                'blogs/<id:\d+>' => 'blog/view',
+                
+                // Create new blog (logged-in users)
+                'blogs/create' => 'blog/create',
+                
+                // Edit blog (author or admin)
+                'blogs/update/<id:\d+>' => 'blog/update',
+                
+                // Delete blog (admin only)
+                'blogs/delete/<id:\d+>' => 'blog/delete',
+                
+                // My blogs (logged-in users)
+                'blogs/my' => 'blog/myBlogs',
+                'blogs/my-blogs' => 'blog/myBlogs',
+                
+                // Blog API routes (if needed)
+                'api/blogs' => 'api/getBlogs',
+                'api/blogs/<id:\d+>' => 'api/getBlog',
+                'api/blogs/create' => 'api/createBlog',
+                'api/blogs/update/<id:\d+>' => 'api/updateBlog',
+                'api/blogs/delete/<id:\d+>' => 'api/deleteBlog',
+                
+                // Blog search (optional)
+                'blogs/search' => 'blog/search',
+                'blogs/category/<category:\w+>' => 'blog/category',
+                
+                // ================================
                 
                 // Default routes - MUST BE LAST
                 '<controller:\w+>/<id:\d+>' => '<controller>/view',
@@ -94,7 +138,7 @@ return array(
     
     'params' => array(
         'adminEmail' => 'webmaster@example.com',
-		 'salt' => 'your-secret-salt-string',
-		 'jwtSecret' => 'your-super-secret-jwt-key-32-chars-minimum!',
+        'salt' => 'your-secret-salt-string',
+        'jwtSecret' => 'your-super-secret-jwt-key-32-chars-minimum!',
     ),
 );

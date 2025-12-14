@@ -1,15 +1,19 @@
-<?php
 
-// change the following paths if necessary
-// $yii=dirname(__FILE__).'/../yii-1.1.18.018a89/framework/yii.php';
-// $config=dirname(__FILE__).'/protected/config/main.php';
+
+<?php
+// Simple index.php for Docker
+
+// Yii settings
+defined('YII_DEBUG') or define('YII_DEBUG', true);
+defined('YII_TRACE_LEVEL') or define('YII_TRACE_LEVEL', 3);
+
+// Paths in Docker container
 $yii = '/var/www/yii/framework/yii.php';
 $config = dirname(__FILE__) . '/protected/config/main.php';
 
-// remove the following lines when in production mode
-defined('YII_DEBUG') or define('YII_DEBUG',true);
-// specify how many levels of call stack should be shown in each log message
-defined('YII_TRACE_LEVEL') or define('YII_TRACE_LEVEL',3);
-
+// Load Yii
 require_once($yii);
+
+// Run application
 Yii::createWebApplication($config)->run();
+

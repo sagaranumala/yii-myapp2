@@ -1,8 +1,14 @@
-<?php
+<!-- <?php
+// protected/config/database.php
+
 return array(
-    'connectionString' => 'mysql:host=' . getenv('DB_HOST') . ';dbname=' . getenv('DB_NAME'),
+    'connectionString' => 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME,
     'emulatePrepare' => true,
-    'username' => getenv('DB_USER'),
-    'password' => getenv('DB_PASS'),
+    'username' => DB_USER,
+    'password' => DB_PASS,
     'charset' => 'utf8',
+    'tablePrefix' => '',
+    'schemaCachingDuration' => 3600,
+    'enableProfiling' => YII_DEBUG,
+    'enableParamLogging' => YII_DEBUG,
 );
