@@ -67,6 +67,8 @@ services:
     volumes:
       - /c/xampp/htdocs/myapp2:/var/www/html
       - /c/xampp/htdocs/yii-1.1.18.018a89:/var/www/yii
+      # - yii-assets:/var/www/html/assets
+      # - yii-runtime:/var/www/html/protected/runtime
     environment:
       APP_ENV: dev
       YII_DEBUG: "true"
