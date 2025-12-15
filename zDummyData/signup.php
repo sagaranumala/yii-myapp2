@@ -151,7 +151,7 @@ $this->breadcrumbs = array('Sign Up');
 
                 <div class="text-center mt-3">
                     <p>Already have an account?
-                        <?php echo CHtml::link('Sign In', array('site/login'), array('class' => 'text-primary')); ?>
+                        <?php echo CHtml::link('Sign In', array('auth/login'), array('class' => 'text-primary')); ?>
                     </p>
                 </div>
             </div>

@@ -100,7 +100,7 @@ class LoginForm extends CFormModel
         /** @var JwtHelper $jwt */
         $jwt = Yii::app()->jwt;
         return $jwt->generateToken(
-            $user->id,
+            $user->userId,
             $user->email,
             $user->role,
             $user->name

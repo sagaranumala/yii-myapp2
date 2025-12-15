@@ -7,7 +7,7 @@
     <h1>Welcome to the Application</h1>
     
     <?php if (Yii::app()->user->isGuest): ?>
-        <p>Please <a href="<?php echo $this->createUrl('site/login'); ?>">login</a> to continue.</p>
+        <p>Please <a href="<?php echo $this->createUrl('auth/login'); ?>">login</a> to continue.</p>
     <?php else: ?>
         <p>Welcome, <?php echo Yii::app()->user->name; ?>!</p>
         <p><a href="<?php echo $this->createUrl('site/logout'); ?>">Logout</a></p>

@@ -1,218 +1,167 @@
 <?php
 class AuthController extends Controller
 {
+    // Disable CSRF for API endpoints only
+    public $enableCsrfValidation = false;
+
     /**
-     * Before action - set CORS headers
+     * Before action - set CORS headers for API, handle web login differently
      */
     public function beforeAction($action)
     {
-        // Set CORS headers for API endpoints
-        $this->setCorsHeaders();
-        
-        // Skip CSRF for API endpoints
-        if (in_array($action->id, array('login', 'signup', 'validate', 'logout'))) {
-            $this->enableCsrfValidation = false;
+        // Only set CORS headers for API actions (login, signup endpoints)
+        if (in_array($action->id, array('login', 'signup')) && 
+            (Yii::app()->request->isAjaxRequest || isset($_SERVER['HTTP_X_REQUESTED_WITH']))) {
+            $this->setCorsHeaders();
         }
-        
         return parent::beforeAction($action);
     }
 
     /**
-     * Set CORS headers
+     * Set CORS headers for API
      */
     private function setCorsHeaders()
     {
-        // Allow from any origin
         if (isset($_SERVER['HTTP_ORIGIN'])) {
             header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
-            header('Access-Control-Allow-Credentials: true');
-            header('Access-Control-Max-Age: 86400');    // cache for 1 day
+            header("Access-Control-Allow-Credentials: true");
+            header("Access-Control-Max-Age: 86400");
         }
 
-        // Access-Control headers are received during OPTIONS requests
-        if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-            if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_METHOD']))
-                header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
-            
-            if (isset($_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']))
-                header("Access-Control-Allow-Headers: {$_SERVER['HTTP_ACCESS_CONTROL_REQUEST_HEADERS']}");
-            
-            exit(0);
+        if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+            header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
+            header("Access-Control-Allow-Headers: Content-Type, Authorization");
+            Yii::app()->end();
         }
     }
 
     /**
-     * API Login endpoint
-     * POST /auth/login
+     * WEB: GET /auth/login - Display login form
+     * API: POST /auth/login - Handle API login
      */
     public function actionLogin()
     {
-        // Set JSON content type
-        header('Content-Type: application/json');
-        
-        // Check if it's a POST request
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->sendJsonResponse(false, 'Method not allowed. Use POST.', null, 405);
-        }
-
-        // Get data from POST or raw JSON
-        $input = file_get_contents('php://input');
-        $data = json_decode($input, true);
-        
-        // Fallback to regular POST
-        if (!$data) {
-            $data = $_POST;
-        }
-
-        // Check if data provided
-        if (empty($data['email']) || empty($data['password'])) {
-            $this->sendJsonResponse(false, 'No login data provided. Provide email and password.');
-        }
-
-        // Create login form
         $model = new LoginForm();
-        $model->email = $data['email'];
-        $model->password = $data['password'];
-        
-        // Validate and login
-        if ($model->validate() && $model->login()) {
-            $token = $model->generateJwtToken();
-            $user = $model->getUser();
-            
-            if ($token) {
-                $this->sendJsonResponse(true, 'Login successful', array(
-                    'token' => $token,
-                    'token_type' => 'bearer',
-                    'expires_in' => Yii::app()->jwt->expireTime,
-                    'user' => $user->getApiData()
-                ));
-            } else {
-                $this->sendJsonResponse(false, 'Failed to generate token');
-            }
-        } else {
-            $this->sendJsonResponse(false, 'Invalid email or password');
+
+        // Handle API/JSON login requests
+        if (Yii::app()->request->isAjaxRequest || isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+            $this->handleApiLogin($model);
+            return;
         }
+
+        // Handle WEB form login
+        if (isset($_POST['LoginForm'])) {
+            $model->attributes = $_POST['LoginForm'];
+            if ($model->validate() && $model->login()) {
+                $this->redirect(array('site/dashboard'));
+            }
+        }
+
+        // Display the web login form
+        $this->render('login', array('model' => $model));
     }
 
     /**
-     * API Signup endpoint
-     * POST /auth/signup
+     * WEB: GET /auth/signup - Display signup form
+     * API: POST /auth/signup - Handle API signup
      */
     public function actionSignup()
     {
-        // Set JSON content type
-        header('Content-Type: application/json');
-        
-        // Check if it's a POST request
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->sendJsonResponse(false, 'Method not allowed. Use POST.', null, 405);
-        }
-
-        // Get data from POST or raw JSON
-        $input = file_get_contents('php://input');
-        $data = json_decode($input, true);
-        
-        // Fallback to regular POST
-        if (!$data) {
-            $data = $_POST;
-        }
-
-        // Check if data provided
-        if (empty($data['email']) || empty($data['password']) || empty($data['name'])) {
-            $this->sendJsonResponse(false, 'Missing required fields: name, email, password.');
-        }
-
-        // Create signup form
         $model = new SignupForm();
-        $model->name = $data['name'];
+
+        // Handle API/JSON signup requests
+        if (Yii::app()->request->isAjaxRequest || isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+            $this->handleApiSignup($model);
+            return;
+        }
+
+        // Handle WEB form signup
+        if (isset($_POST['SignupForm'])) {
+            $model->attributes = $_POST['SignupForm'];
+            if ($model->validate() && $model->register()) {
+                if ($model->autoLogin()) {
+                    $this->redirect(array('site/dashboard'));
+                } else {
+                    Yii::app()->user->setFlash('success', 'Registration successful! Please login.');
+                    $this->redirect(array('auth/login'));
+                }
+            }
+        }
+
+        // Display the web signup form
+        $this->render('signup', array('model' => $model));
+    }
+
+    /**
+     * Handle API login
+     */
+    private function handleApiLogin($model)
+    {
+        $this->requirePost();
+
+        $data = $this->getJsonInput();
+
+        if (empty($data['email']) || empty($data['password'])) {
+            $this->sendJson(false, 'Email and password required');
+        }
+
         $model->email = $data['email'];
         $model->password = $data['password'];
-        $model->password_repeat = isset($data['password_repeat']) ? $data['password_repeat'] : $data['password'];
-        $model->phone = isset($data['phone']) ? $data['phone'] : null;
-        $model->role = isset($data['role']) ? $data['role'] : 'user';
-        $model->agree_terms = isset($data['agree_terms']) ? $data['agree_terms'] : true;
-        
-        // Validate and register
+
+        if ($model->validate() && $model->login()) {
+            $this->sendJson(true, 'Login successful', [
+                'token' => $model->generateJwtToken(),
+                'user'  => $model->getUser()->getApiData(),
+            ]);
+        }
+
+        $this->sendJson(false, 'Invalid credentials');
+    }
+
+    /**
+     * Handle API signup
+     */
+    private function handleApiSignup($model)
+    {
+        $this->requirePost();
+        $data = $this->getJsonInput();
+
+        $model->attributes = $data;
+
         if ($model->validate() && $model->register()) {
-            $token = $model->generateJwtToken();
-            $user = $model->getUser();
-            
-            if ($token) {
-                $this->sendJsonResponse(true, 'Registration successful', array(
-                    'token' => $token,
-                    'token_type' => 'bearer',
-                    'expires_in' => Yii::app()->jwt->expireTime,
-                    'user' => $user->getApiData()
-                ));
-            } else {
-                $this->sendJsonResponse(false, 'Failed to generate token');
-            }
-        } else {
-            $errors = $model->getErrors();
-            $errorMessages = array();
-            foreach ($errors as $field => $messages) {
-                $errorMessages = array_merge($errorMessages, $messages);
-            }
-            
-            $this->sendJsonResponse(false, 'Registration failed', array(
-                'errors' => $errorMessages
-            ));
+            $this->sendJson(true, 'Registration successful', [
+                'token' => $model->generateJwtToken(),
+                'user'  => $model->getUser()->getApiData(),
+            ]);
+        }
+
+        $this->sendJson(false, 'Registration failed', $model->getErrors());
+    }
+
+    /**
+     * API Helpers
+     */
+    private function getJsonInput()
+    {
+        $raw = file_get_contents('php://input');
+        return json_decode($raw, true) ?: $_POST;
+    }
+
+    private function requirePost()
+    {
+        if (!Yii::app()->request->isPostRequest) {
+            $this->sendJson(false, 'POST required', null, 405);
         }
     }
 
-    /**
-     * Validate JWT token
-     * GET /auth/validate
-     */
-    public function actionValidate()
+    private function sendJson($success, $message, $data = null, $code = 200)
     {
-        header('Content-Type: application/json');
-        
-        $userData = Yii::app()->jwt->getCurrentUser();
-        
-        if ($userData) {
-            $this->sendJsonResponse(true, 'Token is valid', $userData);
-        } else {
-            $this->sendJsonResponse(false, 'Invalid or expired token', null, 401);
-        }
-    }
-
-    /**
-     * Register new user (alias for signup - kept for backward compatibility)
-     * POST /auth/register
-     */
-    public function actionRegister()
-    {
-        // Just call the signup action
-        $this->actionSignup();
-    }
-
-    /**
-     * Logout
-     * POST /auth/logout
-     */
-    public function actionLogout()
-    {
-        header('Content-Type: application/json');
-        
-        Yii::app()->user->logout();
-        $this->sendJsonResponse(true, 'Logged out successfully');
-    }
-
-    /**
-     * Send JSON response
-     */
-    private function sendJsonResponse($success, $message, $data = null, $httpCode = 200)
-    {
-        http_response_code($httpCode);
-        
-        $response = array(
+        http_response_code($code);
+        echo json_encode([
             'success' => $success,
             'message' => $message,
-            'data' => $data
-        );
-        
-        echo json_encode($response);
+            'data'    => $data
+        ]);
         Yii::app()->end();
     }
 }

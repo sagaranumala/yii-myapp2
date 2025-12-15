@@ -48,11 +48,24 @@ return array(
             'showScriptName' => true,
             'rules' => array(
 				 // Auth routes
-                'auth/login' => 'auth/login',
-                'auth/register' => 'auth/register',
-                'auth/refresh' => 'auth/refresh',
-                'auth/profile' => 'auth/profile',
-                'auth/logout' => 'auth/logout',
+                // 'auth/login' => 'auth/login',
+                // 'auth/register' => 'auth/register',
+                // 'auth/refresh' => 'auth/refresh',
+                // 'auth/profile' => 'auth/profile',
+                // 'auth/logout' => 'auth/logout',
+
+                'blogs' => 'blog/index',
+            'blog/<id:\d+>' => 'blog/view',
+            'blog/create' => 'blog/create',
+            'blog/update/<id:\d+>' => 'blog/update',
+            'blog/delete/<id:\d+>' => 'blog/delete',
+            'my-blogs' => 'blog/myBlogs',
+            
+            // Alternative routes
+            'article/<id:\d+>' => 'blog/view',
+            'posts' => 'blog/index',
+            'write' => 'blog/create',
+
 
                 // Specific routes first
                 'calculator' => 'site/simpleCalc',

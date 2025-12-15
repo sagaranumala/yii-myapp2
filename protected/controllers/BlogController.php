@@ -2,6 +2,9 @@
 // protected/controllers/BlogController.php
 class BlogController extends CController  // Changed from Controller to CController
 {
+     public $breadcrumbs = array();
+    public $menu = array();
+    
     public function filters()
     {
         return array(
@@ -70,24 +73,42 @@ class BlogController extends CController  // Changed from Controller to CControl
     }
     
     // Action: List all published blogs
-    public function actionIndex()
+
+     public function actionIndex()
     {
-        $dataProvider = new CActiveDataProvider('Blog', array(
-            'criteria' => array(
-                'condition' => 'status = :status',
-                'params' => array(':status' => 'published'), // Assuming status column
-                'order' => 'createdAt DESC',
-            ),
-            'pagination' => array(
-                'pageSize' => 10,
-            ),
-        ));
-        
-        $this->render('index', array(
-            'dataProvider' => $dataProvider,
-        ));
+    // Get all blogs (not just published ones)
+    $criteria = new CDbCriteria(array(
+        'order' => 'createdAt DESC',
+    ));
+    
+    // If user is not admin, only show their own blogs + published ones
+    if (Yii::app()->user->isGuest || Yii::app()->user->getState('role') !== 'admin') {
+        if (Yii::app()->user->isGuest) {
+            // Guests can only see published blogs
+            $criteria->condition = 'status = :status';
+            $criteria->params = array(':status' => 'published');
+        } else {
+            // Logged-in users can see their own blogs + published blogs
+            $userId = Yii::app()->user->userId;
+            $criteria->condition = '(status = :status) OR (userId = :userId)';
+            $criteria->params = array(
+                ':status' => 'published',
+                ':userId' => $userId
+            );
+        }
     }
     
+    $dataProvider = new CActiveDataProvider('Blog', array(
+        'criteria' => $criteria,
+        'pagination' => array(
+            'pageSize' => 12, // Show 12 blogs per page
+        ),
+    ));
+    
+    $this->render('index', array(
+        'dataProvider' => $dataProvider,
+    ));
+}
     // Action: View single blog
     public function actionView($id)
     {
@@ -95,7 +116,7 @@ class BlogController extends CController  // Changed from Controller to CControl
         
         // Check if user can view
         if ($blog->status != 'published') {
-            $userId = Yii::app()->user->id;
+            $userId = Yii::app()->user->userId;
             $userRole = Yii::app()->user->getState('role');
             
             // Only author or admin can view non-published blogs
@@ -110,32 +131,102 @@ class BlogController extends CController  // Changed from Controller to CControl
     }
     
     // Action: Create new blog - SIMPLIFIED VERSION
-    public function actionCreate()
-    {
-        // Check if user is logged in
-        if (Yii::app()->user->isGuest) {
-            $this->redirect(array('site/login'));
+// Action: Create new blog - FIXED VERSION (Prevent multiple submissions)
+public function actionCreate()
+{
+    // Check if user is logged in
+    if (Yii::app()->user->isGuest) {
+        $this->redirect(array('auth/login'));
+        return;
+    }
+    
+    $model = new Blog;
+    
+    if (isset($_POST['Blog'])) {
+        // Check if this is a duplicate submission
+        $sessionKey = 'blog_create_submission_' . Yii::app()->user->id;
+        $lastSubmissionTime = Yii::app()->user->getState($sessionKey);
+        $currentTime = time();
+        
+        // Prevent multiple submissions within 5 seconds
+        if ($lastSubmissionTime && ($currentTime - $lastSubmissionTime) < 5) {
+            Yii::app()->user->setFlash('warning', 'Please wait a moment before creating another blog.');
+            $this->redirect(array('blog/create'));
             return;
         }
         
-        $model = new Blog;
+        // Store submission time
+        Yii::app()->user->setState($sessionKey, $currentTime);
         
-        if (isset($_POST['Blog'])) {
-            $model->attributes = $_POST['Blog'];
-            $model->userId = Yii::app()->user->id; // Set current user as author
-            $model->createdAt = new CDbExpression('NOW()');
-            $model->status = 'draft'; // Default status
-            
-            if ($model->save()) {
-                Yii::app()->user->setFlash('success', 'Blog created successfully!');
-                $this->redirect(array('view', 'id' => $model->id));
-            }
+        $model->attributes = $_POST['Blog'];
+        
+        // Set user ID
+        $model->userId = Yii::app()->user->userId;
+        
+        // Default status if not provided
+        if (empty($model->status)) {
+            $model->status = 'draft';
         }
         
-        $this->render('create', array(
-            'model' => $model,
-        ));
+        // Auto-set publishedAt if status is published
+        if ($model->status == 'published' && empty($model->publishedAt)) {
+            $model->publishedAt = new CDbExpression('NOW()');
+        }
+        
+        // Validate and save
+        if ($model->validate() && $model->save()) {
+            Yii::app()->user->setFlash('success', 'Blog created successfully!');
+            $this->redirect(array('view', 'id' => $model->id));
+            return;
+        } else {
+            Yii::log('Blog validation errors: ' . print_r($model->getErrors(), true), 'error');
+        }
     }
+    
+    $this->render('create', array(
+        'model' => $model,
+    ));
+}
+
+
+    // public function actionCreate()
+    // {
+
+    //      $this->breadcrumbs = array(
+    //     'Blogs' => array('index'),
+    //     'Create',
+    //   );
+    
+    // // Set menu
+    // $this->menu = array(
+    //     array('label' => 'Manage Blogs', 'url' => array('index')),
+    //     array('label' => 'My Blogs', 'url' => array('myBlogs')),
+    // );
+    
+    //     // Check if user is logged in
+    //     if (Yii::app()->user->isGuest) {
+    //         $this->redirect(array('auth/login'));
+    //         return;
+    //     }
+        
+    //     $model = new Blog;
+        
+    //     if (isset($_POST['Blog'])) {
+    //         $model->attributes = $_POST['Blog'];
+    //         $model->userId = Yii::app()->user->userId; // Set current user as author
+    //         $model->createdAt = new CDbExpression('NOW()');
+    //         $model->status = 'draft'; // Default status
+            
+    //         if ($model->save()) {
+    //             Yii::app()->user->setFlash('success', 'Blog created successfully!');
+    //             $this->redirect(array('view', 'id' => $model->id));
+    //         }
+    //     }
+        
+    //     $this->render('create', array(
+    //         'model' => $model,
+    //     ));
+    // }
     
     // Action: Update blog
     public function actionUpdate($id)
@@ -188,7 +279,7 @@ class BlogController extends CController  // Changed from Controller to CControl
     public function actionMyBlogs()
     {
         if (Yii::app()->user->isGuest) {
-            $this->redirect(array('site/login'));
+            $this->redirect(array('auth/login'));
             return;
         }
         
@@ -217,5 +308,8 @@ class BlogController extends CController  // Changed from Controller to CControl
         }
         return $model;
     }
+    
+
+    // Add this method to your BlogController.php
 }
 ?>
